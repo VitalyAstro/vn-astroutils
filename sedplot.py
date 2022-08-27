@@ -1,25 +1,18 @@
 #!/usr/bin/env python3
-#import numpy, matplotlib
 import sys
 from numpy import *
 from pylab import *
 from matplotlib import *
 from sys import stdin
-#import matplotlib.axes3d as p3
-import matplotlib.cm as cm
-#import matplotlib.pyplot as plt
-#from matplotlib.mlab import griddata
-#from enthought.mayavi import mlab
-#from enthought.mayavi.mlab import *    !!!!!!!!!!!!!!!11
-
-
 
 SDSS = ["u'","g'","r'","i'","z'"]
 PS1 =  ["g", "r", "i", "z", "y"]
 Bessell=["U","B","V","R","Rc","I","Ic","J","H","Ks","K"]
 GALEX= ['FUV','NUV']
-AllBands = SDSS + PS1 + Bessell + GALEX
+WISE= ['W1','W2','W3','W4']
+AllBands = SDSS + PS1 + Bessell + GALEX + WISE
 
+#########################################################################
 def Flux(VegaSystem,ZP,Wave,WaveErr,Magnitude,MagErr):
     """
     Converting Magnitudes to Fluxes
@@ -50,6 +43,7 @@ def Flux(VegaSystem,ZP,Wave,WaveErr,Magnitude,MagErr):
 #ZP/2.512**Magnitude*math.log(2.512)*MagErr
 
 
+#########################################################################
 def Convert(Band,Mag,MagErr):
     VegaSystem = None
     if Band in SDSS:
@@ -92,10 +86,6 @@ def Convert(Band,Mag,MagErr):
         Wave=Waves[i]
         WaveErr=WaveErrs[i]
 
-#GALEX	--	--
-#2271	500	NUV
-#1528	200	FUV
-        
     elif Band in Bessell:
         i = Bessell.index(Band)
         #print("Johnson-Cousins (Bessell)")
@@ -103,6 +93,28 @@ def Convert(Band,Mag,MagErr):
         FilterZPs = [417.5e-11,632.0e-11,363.1e-11,217.7e-11,217.7e-11,112.6e-11,112.6e-11,31.47e-11,11.38e-11,4.28e-11,4.09e-11]
         Waves = [3663,4380,5450,6410,6470,7865,7980,12200,16300,21590,21900]
         WaveErrs = [325,445,420,800,800,770,770,810,1255,1310,1620]
+        ZP=FilterZPs[i]
+        Wave=Waves[i]
+        WaveErr=WaveErrs[i]
+
+    elif Band in Bessell:
+        i = Bessell.index(Band)
+        #print("Johnson-Cousins (Bessell)")
+        VegaSystem = True
+        FilterZPs = [417.5e-11,632.0e-11,363.1e-11,217.7e-11,217.7e-11,112.6e-11,112.6e-11,31.47e-11,11.38e-11,4.28e-11,4.09e-11]
+        Waves = [3663,4380,5450,6410,6470,7865,7980,12200,16300,21590,21900]
+        WaveErrs = [325,445,420,800,800,770,770,810,1255,1310,1620]
+        ZP=FilterZPs[i]
+        Wave=Waves[i]
+        WaveErr=WaveErrs[i]
+
+    elif Band in WISE:
+        i = WISE.index(Band)
+        #print("Johnson-Cousins (Bessell)")
+        VegaSystem = True
+        FilterZPs = [8.1787E-12,2.415E-12,6.52e-14,5.09e-15]
+        Waves = [33526.,46028.,115608.,220883.]
+        WaveErrs = [3313.,5211.,27527.,20500.]
         ZP=FilterZPs[i]
         Wave=Waves[i]
         WaveErr=WaveErrs[i]
@@ -122,6 +134,7 @@ def Convert(Band,Mag,MagErr):
     F,FErr=Flux(VegaSystem,ZP,Wave,WaveErr,Mag,MagErr)
     return Wave,WaveErr,F,FErr
 
+#########################################################################
 def ReadData(lines):
     Waves = []
     WaveErrs = []
@@ -158,7 +171,6 @@ def WriteData4(nn,aa,bb,cc,dd,output_file_path):
         outfile.write(' %8.1f \t %8.1f \t %12.6e \t %12.6e \n' %  (aa[i],bb[i],cc[i],dd[i]))
         # outfile.write(' %12.6f \t %12.6f \t %12.6f \n' %  (aa[i],bb[i],cc[i]))
     outfile.close()
-
 #########################################################################
 
 def print_header():
@@ -167,7 +179,7 @@ def print_header():
     print ("**                               sedplot.py                                  **")
     print ("** A little utility to plot a SED using multicolour photometric measurements **")
     print ("**                                                                           **")
-    print ("**                            2022-August-26                                 **")
+    print ("**                            2022-August-28                                 **")
     print ("**                           Vitaly Neustroev                                **")
     print ("*******************************************************************************")
     print ("")
@@ -180,25 +192,24 @@ def usage():
     print ("FileName is a SED filename (up to 7 files can be read).")
     print ("Each SED must give a band name in the first column and a magnitude in the second")
     print ("     (a magnitude error in the 3rd column is optional but will be used if given)")
-    print ("Options: -hlwb")
+    print ("Options: -hblws")
     print ("     -h: Help")
+    print ("     -b: List of recognized photometric bands")
     print ("     -l: Plot in logariphmic scale [default: in linear]")
     print ("     -w: SEDs in fluxes will be written to text-files with names [FileName].sed consisted of 4 columns:") 
     print ("                                                                     Wavelength, WaveErr, Flux, FluxErr")
-    print ("     -b: List of recognized photometric bands")
+    print ("     -s: Plot of the sed-file [4 columns: Wavelength, WaveErr, Flux, FluxErr]")
     print ("")
     sys.exit(-1)
 
 
 ##########################################################################
 
-
-#############################################################
-
 print_header()
 j=0
 isLog = False
 isWrite = False
+isSED = False
 FileList = []
 pyplot.figure(figsize=(12, 8))
 if len(sys.argv) == 1:
@@ -223,7 +234,11 @@ for i in range(len(sys.argv)-1):
             print(Bessell)
             print('GALEX:')
             print(GALEX)
+            print('WISE:')
+            print(WISE)
             exit()
+        if ('s' or 'S') in CmdLinePar[1:]:
+            isSED = True
     else:
         FileName = CmdLinePar
         #print("Name: ",FileName)
@@ -232,10 +247,17 @@ for i in range(len(sys.argv)-1):
             #exit(-1)               
         else:
             j+=1
-            infile = open(FileName, "r")
-            lines = infile.readlines()
-            infile.close()
-            Waves,WaveErrs,Fluxes,FluxErrs = ReadData(lines)
+            if isSED:
+                data0 = loadtxt(FileName, usecols=[0,1,2,3], unpack=True)
+                Waves=data0[0,:]
+                WaveErrs=data0[1,:]
+                Fluxes=data0[2,:]
+                FluxErrs=data0[3,:]
+            else:
+                infile = open(FileName, "r")
+                lines = infile.readlines()
+                infile.close()
+                Waves,WaveErrs,Fluxes,FluxErrs = ReadData(lines)
             if j==1:
                 pyplot.errorbar(Waves,Fluxes,xerr=WaveErrs, yerr=FluxErrs,fmt='o',color='b',label=FileName)
             if j==2:                                                                              
@@ -250,7 +272,7 @@ for i in range(len(sys.argv)-1):
                 pyplot.errorbar(Waves,Fluxes,xerr=WaveErrs, yerr=FluxErrs,fmt='o',color='y',label=FileName)
             if j==7:                                                                              
                 pyplot.errorbar(Waves,Fluxes,xerr=WaveErrs, yerr=FluxErrs,fmt='o',color='m',label=FileName)
-            if isWrite:
+            if isWrite and not isSED:
                 WriteData4(len(Waves),Waves,WaveErrs,Fluxes,FluxErrs,FileName+'.sed')
 #print("j=",j)
 if j==0:
