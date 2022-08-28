@@ -1,5 +1,7 @@
-#!/usr/bin/python
-#import numpy
+#!/usr/bin/python3
+"""spec-aver: ver. 20220224  (c) Vitaly Neustroev"""
+
+
 
 from numpy import *
 import sys
@@ -7,6 +9,7 @@ from sys import stdin
 import numpy as np
 from pylab import *
 from scipy import signal
+from scipy import interpolate
 import os
 import os.path
 
@@ -125,6 +128,23 @@ def SpecCut(aa,bb,cc,W1,W2):
 
 #########################################################################
 
+def SpecSkyCut(aa,bb,cc,W1,W2):
+    """
+    A spectrum cut off the sky lines.
+    """
+    idx_beg=find_nearest(aa,W1)
+    idx_end=find_nearest(aa,W2)   
+    wave = []
+    flux = []    
+    fluxerr = []
+    wave.extend(aa[idx_beg:idx_end+1])
+    flux.extend(bb[idx_beg:idx_end+1])
+    fluxerr.extend(cc[idx_beg:idx_end+1])
+    
+    return wave,flux,fluxerr
+
+#########################################################################
+
 
 def ReadSpectra(FileNames,FirstWave,isErr,isMask):
     """
@@ -176,6 +196,26 @@ def ReadSpectra(FileNames,FirstWave,isErr,isMask):
         else:
             FluxClipNew = Flux
             FluxErrClipNew = np.ones_like(Flux)
+            
+        if isSky:
+            WaveClip=[]
+            FluxClip=[]
+            FluxErrClip=[]
+            for i in range(Length):
+                if Sky[i] == 0:
+                    WaveClip.append(Wavelength[i])
+                    FluxClip.append(FluxClipNew[i])
+                    FluxErrClip.append(FluxErrClipNew[i])
+                #else:
+                    #print(Sky[i],Wavelength[i])
+            #print(WaveClip)
+            f1 = interpolate.interp1d(WaveClip,FluxClip)
+            f2 = interpolate.interp1d(WaveClip,FluxErrClip)
+            FluxClipNew = f1(FirstWave)
+            FluxErrClipNew = f2(FirstWave)
+            # FluxMaskNew = interp(FirstWave,WaveClip,FluxClip)
+            # FluxErrMaskNew = interp(FirstWave,WaveClip,FluxErrClip)
+        
         AllFlux.append(FluxClipNew)
         AllFluxErr.append(FluxErrClipNew)
         
@@ -190,14 +230,13 @@ def ReadSpectra(FileNames,FirstWave,isErr,isMask):
 #########################################################################
 
 
-def FirstSpec(FileName):
+def FirstSpec(FileName,FileNameSky):
     """
     Reading of the wavelengths from the first spectrum and Testing for the presense of columns.
     """
-    global isClipMask, isClean, isWeighted
+    global isClipMask, isClean, isWeighted, isSky, Sky, dLam, SkyStrengthLimit
     data0 = loadtxt(FileName, unpack=True,skiprows=0)
     Wavelength=data0[0,:]
-    #WaveMask=data0[0,:]
     Length=len(Wavelength)
     Flux=data0[1,:]
     try:
@@ -218,6 +257,30 @@ def FirstSpec(FileName):
        isClipMask = False
        print(isClipMask)
        
+    if isSky:
+        try:
+            data1 = loadtxt(FileNameSky, unpack=True,skiprows=0)
+            WaveSky=data1[0,:]
+            StrengthSky=data1[1,:]
+            Sky = np.zeros_like(Wavelength)
+            for i in range(len(WaveSky)):
+                #if (WaveSky[i] < Wavelength[0]) or (WaveSky[i] > Wavelength[-1]):
+                if (StrengthSky[i] <= SkyStrengthLimit):
+                    #print(WaveSky[i],Wavelength[0])
+                    continue
+                else:
+                    idx_beg=find_nearest(Wavelength,WaveSky[i]-dLam)
+                    idx_end=find_nearest(Wavelength,WaveSky[i]+dLam)
+                    Sky[idx_beg:idx_end+1] = 2048            
+                    #print(idx_beg,idx_end+1,Wavelength[idx_beg:idx_end+1],Sky[idx_beg:idx_end+1])
+            Sky[0]  = 0
+            Sky[-1] = 0
+        except FileNotFoundError:
+            print ("The file with sky lines is not found. No sky lines will be cut off.")
+            isSky = False
+        #for i in range(len(Wavelength)):
+            #if Sky[i] == 0:
+                #print(Wavelength[i])
     return Wavelength,isErr,isMask
 
 
@@ -235,8 +298,8 @@ def renorm(num,values, errors):
     
     TotalAver = mean(values)
     for i in range(num):
-        normval[i,:] = values[i,:] / mean(values[i,:]) * TotalAver
-        normerr[i,:] = errors[i,:] / mean(values[i,:]) * TotalAver
+        normval[i,:] = values[i,:] / median(values[i,:]) * TotalAver
+        normerr[i,:] = errors[i,:] / median(values[i,:]) * TotalAver
     
     return (normval, normerr)
 
@@ -260,7 +323,7 @@ def print_header():
     print ("**                                     spec_aver.py                                          **")
     print ("** A utility to combine TXT-files of spectra using a weighted or ordinary arithmetic average **")
     print ("**            The spectra can be first cleaned from bad data points and outliers             **")
-    print ("**                                    2021-April-25                                          **")
+    print ("**                                     2022-Feb-24                                           **")
     print ("**                                   Vitaly Neustroev                                        **")
     print ("***********************************************************************************************")
     print ("")
@@ -273,19 +336,19 @@ def usage():
     print ("FileList is a list of spectra.")
     print ("Each spectrum can consist of 4 columns: Wavelength, Flux, FluxErr QualityMask")
     print ("                           (for example, spectra obtained with ESO/X-shooter)")
-    print ("Options: -cnqwms")
+    print ("Options: -cnqwlms +s")
     print ("     -h: Help")
     print ("     -c: The spectra will NOT be cleaned    [default: will be cleaned]")
     print ("     -n: The spectra will NOT be normalized [default: will be normalized]")
     print ("     -q: The spectra will NOT be clipped    [default: will be clipped using the QualityMask]")
+    print ("     -s: The spectra will NOT be clipped off the sky lines [default: will be clipped using") 
+    print ("                                 the wavelengths of skylines from the file 'skylines.txt']")
+    print ("     +s: Will be asked to enter the Strength limit of the skylines and the range of wavelengths") 
+    print ("                                          around skylines to be cut off [default: 0.1 and 1.25]")
     print ("     -w: An ordinary arithmetic average will be used instead of a weighted average")
-    print ("     -m: Will be asked to enter the size of the median filter window [default value is 11]")
-    print ("     -s: Will be asked to enter the number of standard deviations at the given wavelength") 
+    print ("     -l: Will be asked to enter the number of standard deviations at the given wavelength") 
     print ("                                        to use for the clipping limit [default value is 5]")
-    # print ("     -c: Will the spectra be cleaned? [default: yes]")
-    # print ("     -n: Will the spectra be normalized to the mean value? [default: yes]")
-    # print ("     -q: Will the spectra be clipped using the QualityMask? [default: yes]")
-    # print ("     -w: Which type of average will be used? [default: weighted]")
+    print ("     -m: Will be asked to enter the size of the median filter window [default value is 21]")
     print ("")
     sys.exit(-1)
 
@@ -294,10 +357,13 @@ def usage():
 
 
 #os.chdir("/home/benj/OwnCloud/My_Papers/BW_Scl/Data/Xsh/NIR/NewReduction/Telluric_Cleaned/Phased/Test/")
+#os.chdir("/home/benj/OwnCloud/Scripts/T/")
+#os.chdir("/home/benj/OwnCloud/My_Papers/BW_Scl/Data/Xsh/NIR/NewReduction/TotalSum.telluric")
+
 
 #print_header()
 
-global isClipMask, isClean, isWeighted
+global isClipMask, isClean, isWeighted, isSky, Sky, dLam, SkyStrengthLimit
 FileList=False
 ResultFileName=False
 isClipMask = True
@@ -305,9 +371,15 @@ isClean = True
 isRenorm = True
 isWeighted = True
 isInterp = False
+isSky = True
+Sky = []
+HomeDir = "/scisoft/Other_Soft/Files4scripts/"
+FileNameSky = HomeDir+"skylines.txt"
 
-s1 = -1
-Median1 = 11
+dLam = 1.25
+SkyStrengthLimit = 0.1
+s1 = 0
+Median1 = 21
 Sigmas = 5.0
 
 if len(sys.argv) == 1:
@@ -320,7 +392,7 @@ for i in range(len(sys.argv)-1):
     if (CmdLinePar[0] != '-') and (CmdLinePar[0] != '+'):
         if not FileList:
             FileName = CmdLinePar
-            if FileName[1:] == '@':
+            if FileName[0] == '@':
                 s1 = 1
             try:
                 infile = open(FileName[s1:], "r")
@@ -329,7 +401,7 @@ for i in range(len(sys.argv)-1):
                 print("The FileList ",FileName[s1:]," includes ",len(lines)," FileNames")
                 FileList=True                
             except:
-                print("Somethin wrong with the FileList ",FileName[s1:])
+                print("Something wrong with the FileList ",FileName[s1:])
         else:
             ResultFile = CmdLinePar.rstrip('\n')
             if not os.path.isfile(ResultFile):                
@@ -347,14 +419,22 @@ for i in range(len(sys.argv)-1):
             isClean = False
         if ('q' or 'Q') in CmdLinePar[1:]:
             isClipMask = False
+        if ('s' or 'S') in CmdLinePar[1:]:
+            isSky = False
         if ('n' or 'N') in CmdLinePar[1:]:
             isRenorm = False
         if ('w' or 'W') in CmdLinePar[1:]:
             isWeighted = False
-        if ('m' or 'M') in CmdLinePar[1:]:
-            Median1 = int(input("Enter the size of the median filter window (the default value is 11): "))
-        if ('s' or 'S') in CmdLinePar[1:]:
+        if ('l' or 'L') in CmdLinePar[1:]:
             Sigmas = float(input("Enter the number of standard deviations for the clipping limit [default value is 5]: "))
+        if ('m' or 'M') in CmdLinePar[1:]:
+            Median1 = int(input("Enter the size of the median filter window (the default value is 21): "))
+
+    elif CmdLinePar[0] == '+':
+        if ('s' or 'S') in CmdLinePar[1:]:
+            isSky = True
+            SkyStrengthLimit = float(input("Enter the Strength limit of the skylines to be cut off [default value is 0.1]: "))
+            SkyStrengthLimit = float(input("Enter the range of wavelengths around skylines to be cut off [default value is 1.25 A]: "))
             
 while (not FileList):
     FileName = input("Enter the file name of a list of spectra: ")
@@ -368,7 +448,7 @@ while (not FileList):
         print("The FileList ",FileName[s1:]," includes ",len(lines)," FileNames")
         FileList=True                
     except:
-        print("Somethin wrong with the FileList ",FileName[s1:])
+        print("Something wrong with the FileList ",FileName[s1:])
 NumOfSpec = len(lines)
 
 if not ResultFileName:
@@ -380,13 +460,18 @@ if not ResultFileName:
 ResultFileName = True            
 
 
-WaveFirst, isErr, isMask = FirstSpec(lines[0].rstrip('\n'))
+WaveFirst, isErr, isMask = FirstSpec(lines[0].rstrip('\n'),FileNameSky)
 
 if isClipMask:
     print('\nThe spectra will be masked.')
 else:
     print('\nThe spectra will NOT be masked.')
 
+if isSky:
+    print('The sky lines will be cut off.')
+else:
+    print('The sky lines will NOT be cut off.')
+    
 if isClean:
     print('The spectra will be cleaned with Median',Median1,' and sigma',Sigmas)
 else:
