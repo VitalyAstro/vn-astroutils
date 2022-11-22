@@ -1,13 +1,9 @@
-#!/usr/bin/python
+#!/usr/bin/python3
 
-#import numpy
-#from numpy import *
 import sys
 import re
 from sys import stdin
 import numpy as np
-#from pylab import *
-#import pyfits
 from astropy.io import fits as pyfits
 from shutil import copy2
 from os import rename 
@@ -20,7 +16,7 @@ def print_header():
     print ("**                                  xs_reformat.py                                    **")
     print ("**   A little utility to rename FITS-files of spectra, obtained with ESO/X-shooter    **")
     print ("** or convert them into text-files, with wavelength correction (from nm to angstroms) **")
-    print ("**                                    2022-Nov-21                                     **")
+    print ("**                                    2022-Nov-22                                     **")
     print ("**                                 Vitaly Neustroev                                   **")
     print ("****************************************************************************************")
     print ("")
@@ -39,6 +35,10 @@ def usage():
     print ("         converting the wavelengths from nm to angstroms.")
     print ("     -c: Copy of original FITS-files into current directory, giving them new names and")
     print ("         keeping the original wavelengths unchanged.")
+    print ("     -mjd: [Default] The file names of the converted files will be given in the MJD times.")
+    print ("     -hjd: The file names of the converted files will be given in the HJD times (-2450000).")
+    print ("     -bjd: The file names of the converted files will be given in the BJD times (-2450000).")
+    print ("     -jd: The file names of the converted files will be given in the JD times (-2450000).")
     print ("")
     sys.exit(-1)
 
@@ -116,7 +116,7 @@ def correctFITS(file_name,NewFileName):
 
 #########################################################################
 
-def read_fits(file_name):
+def read_fits(file_name,isHJD,isBJD):
 
     '''
     Read XShooter's fits files.
@@ -147,22 +147,40 @@ def read_fits(file_name):
     err = np.copy(errdata)
     qual = np.copy(qdata)
     
-    return obj, instrument, arm, mjd, exptime, ra, dec, wave, flux, err, qual
-
-
-
+    jd = mjd + 2400000.5
+    timeconv = jd - 2450000
+    
+    if isHJD or isBJD:
+        from astropy import time, coordinates as coord, units as u    
+        target = coord.SkyCoord(ra, dec, unit='deg', frame='icrs')
+        paranal = coord.EarthLocation.of_site('paranal')
+        time_corr = time.Time(jd+exptime/172800, format='jd', scale='utc', location=paranal)
+        if isHJD:
+            ltt_helio = time_corr.light_travel_time(target, 'heliocentric')            
+            timeconv = (time_corr + ltt_helio).value - 2450000
+        elif isBJD:
+            ltt_bary =  time_corr.light_travel_time(target)
+            timeconv = (time_corr + ltt_bary).value - 2450000
+    
+    return obj, instrument, arm, mjd, timeconv, wave, flux, err, qual
 
 ##############################
 
 
 
-def ReadSpec(FileName,FITSformat):
+def ReadSpec(FileName,FITSformat,isHJD,isBJD,isJD):
 
-    obj, instrument, arm, mjd, exptime, ra, dec, wave, flux, err, qual = read_fits(FileName)
+    obj, instrument, arm, mjd, timeconv, wave, flux, err, qual = read_fits(FileName,isHJD,isBJD)
     if isHJD:
-        hjd = helio_jd(mjd+2400000.+exptime/172800,ra,dec)
-    mjdstr = "%.7f" %mjd   
-    NewFileName = obj+ '_' + arm + '_MJD'+ mjdstr
+        #hjd = helio_jd(mjd+2400000.+exptime/172800,ra,dec)
+        timestr = '_HJD'+ "%.6f" %timeconv
+    elif isBJD:
+        timestr = '_BJD'+ "%.6f" %timeconv
+    elif isJD:
+        timestr = '_JD'+ "%.6f"  %timeconv
+    else:
+        timestr = '_MJD'+ "%.6f" %mjd
+    NewFileName = obj+ '_' + arm + timestr
     NewFileName = re.sub(r"\s+", '_', NewFileName)
     if FITSformat and isJustCopy:
         copy2(FileName,'./'+NewFileName+'.fits')
@@ -180,56 +198,78 @@ def ReadSpec(FileName,FITSformat):
 if len(sys.argv) == 1:
     usage()
 
-#print len(sys.argv)
-#print sys.argv
-FileList = sys.argv[1]
-
+isJD  = False
+isHJD = False
+isBJD = False
+isFileList=False
+isJustCopy = False
 FITSformat = False
-if FileList == '-h':
-    usage()
-elif FileList == '-c':
-    FITSformat = True
-    isJustCopy = True
-elif FileList == '-f':
-    FITSformat = True
-    isJustCopy = False
-elif FileList == '-t':
-    FITSformat = False
-else:
-    try:
-        infile = open(FileList, "r")
-        lines = infile.readlines()
-        infile.close()      
-    except NameError:
-        print(" ")
-        print("Enter the filename of the list of spectra: ")
-        output_file_path = stdin.readline()
-        FileList = output_file_path.rstrip('\n')
-        try:
-            infile = open(FileList, "r")
-            lines = infile.readlines()
-            infile.close()      
-        except NameError:
+lines = []
+s1 = 0
+
+for i in range(len(sys.argv)-1):
+    CmdLinePar = sys.argv[i+1]
+    if (CmdLinePar[0] != '-'):
+        if not isFileList:
+            FileName = CmdLinePar
+            if FileName[0] == '@':
+                s1 = 1
+                try:
+                    infile = open(FileName[s1:], "r")
+                    lines = infile.readlines()
+                    infile.close()
+                    #print("The FileList ",FileName[s1:]," includes ",len(lines)," FileNames")
+                    isFileList=True                
+                except:
+                    print("Something wrong with the FileList ",FileName[s1:])
+                    print(" ")
+                    print("Enter the filename of the list of spectra: ")
+                    output_file_path = stdin.readline()
+                    FileList = output_file_path.rstrip('\n')
+                    try:
+                        infile = open(FileList, "r")
+                        lines = infile.readlines()
+                        infile.close()      
+                    except NameError:
+                        usage()
+            else:
+                FileName = CmdLinePar.rstrip('\n')
+                lines.append(FileName)
+    elif CmdLinePar[0] == '-':
+        if CmdLinePar == '-h':
             usage()
-if (len(sys.argv) > 2):
-    FileList = sys.argv[2]
-else:
-  print(" ")
-  print("Enter the filename of the list of spectra: ")
-  output_file_path = stdin.readline()
-  FileList = output_file_path.rstrip('\n')
-  try:
-    infile = open(FileList, "r")
-    lines = infile.readlines()
-    infile.close()      
-  except NameError:
-      usage()
+            exit()
+        if CmdLinePar == '-hjd':
+            isHJD = True
+            isBJD = False
+            isJD = False
+        if CmdLinePar == '-bjd':
+            isHJD = False
+            isBJD = True
+            isJD = False
+        if CmdLinePar == '-jd':
+            isHJD = False
+            isBJD = False
+            isJD = True
+        if CmdLinePar == '-c':
+            FITSformat = True
+            isJustCopy = True
+        if CmdLinePar == '-f':
+            FITSformat = True
+            isJustCopy = False
+        if CmdLinePar == '-t':
+            FITSformat = False
 
-
-infile = open(FileList, "r")
-lines = infile.readlines()
-infile.close()
-
+if isHJD and not isBJD and not isJD:
+    print('The file names will be given in the HJD times (-2450000).')
+elif isBJD and not isHJD and not isJD:
+    print('The file names will be given in the BJD times (-2450000).')
+elif isJD and not isHJD and not isBJD:
+    print('The file names will be given in the JD times  (-2450000).')
+elif not isBJD and not isHJD and not isJD:
+    print('The file names will be given in the MJD times.')
+print()
+            
 for line in lines:
     FileName = line.rstrip('\n')
-    ReadSpec(FileName,FITSformat)
+    ReadSpec(FileName,FITSformat,isHJD,isBJD,isJD)
