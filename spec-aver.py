@@ -1,7 +1,6 @@
-#!/usr/bin/python3
-"""spec-aver: ver. 20220224  (c) Vitaly Neustroev"""
-
-
+#!/usr/bin/env python3
+"""spec-aver: ver. 20221130  (c) Vitaly Neustroev"""
+DateVer='1.07:  2022-Dec-01'
 
 from numpy import *
 import sys
@@ -12,6 +11,13 @@ from scipy import signal
 from scipy import interpolate
 import os
 import os.path
+import glob
+
+# ==============================================================================
+def print_history():
+    print('2022-Dec-01: Patterns can be used instead of list of files.')
+    print('2022-Nov-30: Different standard deviations of the average spectrum can be used.')
+    print('2022-Nov-25: Weighted standard deviations of the average spectrum are now calculated correctly.')
 
 # ==============================================================================
 def find_nearest(array, value):
@@ -57,6 +63,15 @@ def WriteData4(nn,aa,bb,cc,dd,output_file_path):
     for i in range (0, nn):
         outfile.write(' %12.6f \t %12.6e \t %12.6e \t %12.6e \n' %  (aa[i],bb[i],cc[i],dd[i]))
         # outfile.write(' %12.6f \t %12.6f \t %12.6f \n' %  (aa[i],bb[i],cc[i]))
+    outfile.close()
+#########################################################################
+def WriteData5(nn,aa,bb,cc,dd,ee,output_file_path):
+    """
+    Write five columns of data to an external ASCII text file
+    """
+    outfile = open(output_file_path,"w")
+    for i in range (0, nn):
+        outfile.write(' %12.6f \t %12.6e \t %12.6e \t %12.6e \t %12.6e \n' %  (aa[i],bb[i],cc[i],dd[i],ee[i]))
     outfile.close()
 #########################################################################
 def MedStd (x, k):
@@ -116,14 +131,14 @@ def SpecCut(aa,bb,cc,W1,W2):
     A spectrum cut
     """
     idx_beg=find_nearest(aa,W1)
-    idx_end=find_nearest(aa,W2)   
+    idx_end=find_nearest(aa,W2)
     wave = []
-    flux = []    
+    flux = []
     fluxerr = []
     wave.extend(aa[idx_beg:idx_end+1])
     flux.extend(bb[idx_beg:idx_end+1])
     fluxerr.extend(cc[idx_beg:idx_end+1])
-    
+
     return wave,flux,fluxerr
 
 #########################################################################
@@ -133,14 +148,14 @@ def SpecSkyCut(aa,bb,cc,W1,W2):
     A spectrum cut off the sky lines.
     """
     idx_beg=find_nearest(aa,W1)
-    idx_end=find_nearest(aa,W2)   
+    idx_end=find_nearest(aa,W2)
     wave = []
-    flux = []    
+    flux = []
     fluxerr = []
     wave.extend(aa[idx_beg:idx_end+1])
     flux.extend(bb[idx_beg:idx_end+1])
     fluxerr.extend(cc[idx_beg:idx_end+1])
-    
+
     return wave,flux,fluxerr
 
 #########################################################################
@@ -148,9 +163,9 @@ def SpecSkyCut(aa,bb,cc,W1,W2):
 
 def ReadSpectra(FileNames,FirstWave,isErr,isMask):
     """
-    Write three columns of data to an external ASCII text file
+    Read the spectra from ASCII text files
     """
-    
+
     AllFlux=[]
     AllFluxErr=[]
     for line in FileNames:
@@ -161,11 +176,11 @@ def ReadSpectra(FileNames,FirstWave,isErr,isMask):
         Flux=data0[1,:]
         WaveMask=[]
         FluxMask=[]
-        FluxErrMask=[]        
+        FluxErrMask=[]
         WaveClip=[]
         FluxClip=[]
-        FluxErrClip=[]        
-        if isErr: 
+        FluxErrClip=[]
+        if isErr:
             FluxErr=data0[2,:]
             if isMask and isClipMask:
                 Mask=data0[3,:]
@@ -196,7 +211,7 @@ def ReadSpectra(FileNames,FirstWave,isErr,isMask):
         else:
             FluxClipNew = Flux
             FluxErrClipNew = np.ones_like(Flux)
-            
+
         if isSky:
             WaveClip=[]
             FluxClip=[]
@@ -215,15 +230,9 @@ def ReadSpectra(FileNames,FirstWave,isErr,isMask):
             FluxErrClipNew = f2(FirstWave)
             # FluxMaskNew = interp(FirstWave,WaveClip,FluxClip)
             # FluxErrMaskNew = interp(FirstWave,WaveClip,FluxErrClip)
-        
+
         AllFlux.append(FluxClipNew)
         AllFluxErr.append(FluxErrClipNew)
-        
-    #print(array(AllFlux))
-
-    #if Interp:
-        #wa,fl,flerr = SpecCut(Wavelength,FluxClipNew,FluxErrClipNew,InterW1,InterW2)
-        #WriteData3(len(wa),wa,fl,flerr,FileName+'.cut')
 
     return array(AllFlux),array(AllFluxErr)
 
@@ -251,12 +260,12 @@ def FirstSpec(FileName,FileNameSky):
     try:
        Mask=data0[3,:]
        isMask = 1
-       print ("The first spectrum has the 4th column. We assume that ALL the files include mask data.")   
+       print ("The first spectrum has the 4th column. We assume that ALL the files include mask data.")
     except IndexError:
        isMask = 0
        isClipMask = False
        print(isClipMask)
-       
+
     if isSky:
         try:
             data1 = loadtxt(FileNameSky, unpack=True,skiprows=0)
@@ -271,16 +280,16 @@ def FirstSpec(FileName,FileNameSky):
                 else:
                     idx_beg=find_nearest(Wavelength,WaveSky[i]-dLam)
                     idx_end=find_nearest(Wavelength,WaveSky[i]+dLam)
-                    Sky[idx_beg:idx_end+1] = 2048            
+                    Sky[idx_beg:idx_end+1] = 2048
                     #print(idx_beg,idx_end+1,Wavelength[idx_beg:idx_end+1],Sky[idx_beg:idx_end+1])
             Sky[0]  = 0
             Sky[-1] = 0
-        except FileNotFoundError:
-            print ("The file with sky lines is not found. No sky lines will be cut off.")
+            print('\nThe sky lines will be cut off.')
+        except:
+            print ("\nThe file",FileNameSky,"with sky lines is NOT found. NO sky lines will be cut off.")
             isSky = False
-        #for i in range(len(Wavelength)):
-            #if Sky[i] == 0:
-                #print(Wavelength[i])
+    else:
+        print('\nThe sky lines will NOT be cut off.')
     return Wavelength,isErr,isMask
 
 
@@ -295,35 +304,66 @@ def renorm(num,values, errors):
 
     normval = np.empty_like(values)
     normerr = np.empty_like(errors)
-    
+
     TotalAver = mean(values)
     for i in range(num):
         normval[i,:] = values[i,:] / median(values[i,:]) * TotalAver
         normerr[i,:] = errors[i,:] / median(values[i,:]) * TotalAver
-    
+
     return (normval, normerr)
 
 
 #########################################################################
 
-def weighted_avg_and_std(values, weights):
-    """
-    Return the weighted average and standard deviation.
-    values, weights -- Numpy ndarrays with the same shape.
-    """
-    average = np.average(values, weights=weights)
-    variance = 1. / np.sum(weights)
-    return (average, math.sqrt(variance))
+#def weighted_avg_and_std_old(values, weights):
+    #"""
+    #Return the weighted average and standard deviation.
+    #values, weights -- Numpy ndarrays with the same shape.
+    #"""
+    #average = np.average(values, weights=weights)
+    #variance = 1. / np.sum(weights)
+    #return (average, math.sqrt(variance))
 
-#########################################################################
+##########################################################################
+
+#def weighted_avg_and_std(values, weights, HowErr):
+    #"""
+    #Return the weighted average and standard deviation.
+    #values, weights -- Numpy ndarrays with the same shape.
+    #"""
+    #average = np.average(values, weights=weights)
+    #NZ=np.count_nonzero(weights)
+    #if HowErr == 2:
+        #variance = 1. / np.sum(weights)
+    #else:
+        #variance = np.sum(weights*(values-average)**2) / (NZ-1) / np.sum(weights)
+    #return (average, math.sqrt(variance))
+
+##########################################################################
+
+#def weighted_std(values, weights, HowErr):
+    #"""
+    #Return the weighted standard deviation.
+    #values, weights -- Numpy ndarrays with the same shape.
+    #"""
+    #average = np.average(values, weights=weights)
+    #NZ=np.count_nonzero(weights)
+    #if HowErr == 2:
+        #variance = 1. / np.sum(weights)
+    #else:
+        #variance = np.sum(weights*(values-average)**2) / (NZ-1) / np.sum(weights)
+    #return math.sqrt(variance)
+
+
+
 
 def print_header():
     print ("")
     print ("***********************************************************************************************")
     print ("**                                     spec_aver.py                                          **")
+    print ("**                               ver. %s                                     **" % DateVer)
     print ("** A utility to combine TXT-files of spectra using a weighted or ordinary arithmetic average **")
     print ("**            The spectra can be first cleaned from bad data points and outliers             **")
-    print ("**                                     2022-Feb-24                                           **")
     print ("**                                   Vitaly Neustroev                                        **")
     print ("***********************************************************************************************")
     print ("")
@@ -331,24 +371,32 @@ def print_header():
 def usage():
     print_header()
     "Usage function"
-    print ("Usage: %s [options] [@]FileList [ResultFile]" % sys.argv[0])
+    print ("Usage: %s [options] @FileList/pattern [ResultFile]" % sys.argv[0])
     print (" ")
-    print ("FileList is a list of spectra.")
-    print ("Each spectrum can consist of 4 columns: Wavelength, Flux, FluxErr QualityMask")
+    print ("@FileList is a list of spectra.")
+    print ("If no FileList is given then a list will be created from the files matching the pattern.")
+    print ("   Sometimes a pattern is not parsed correctly. Put it with single quotes, e.g. '*.txt'.")
+    print ("\nEach spectrum can consist of 4 columns: Wavelength, Flux, FluxErr QualityMask")
     print ("                           (for example, spectra obtained with ESO/X-shooter)")
-    print ("Options: -cnqwlms +s")
+    print ("The resulting spectrum will have the 3rd column with FluxErr which by default is calulated using")
+    print ("                            the formula SQRT(sum(weights*(values-average)^2)/sum(weights)/(N-1))")
+    print ("The option -e will switch it to SQRT(1/sum(weights)) while with -E the errors will be calculated")
+    print ("                      from the resulting spectrum (default approach for the data with no errors)")
+    print ("Options: -cnqwlmseE +s")
     print ("     -h: Help")
+    print ("     -H: Summary of changes")
     print ("     -c: The spectra will NOT be cleaned    [default: will be cleaned]")
     print ("     -n: The spectra will NOT be normalized [default: will be normalized]")
     print ("     -q: The spectra will NOT be clipped    [default: will be clipped using the QualityMask]")
-    print ("     -s: The spectra will NOT be clipped off the sky lines [default: will be clipped using") 
+    print ("     -s: The spectra will NOT be clipped off the sky lines [default: will be clipped using")
     print ("                                 the wavelengths of skylines from the file 'skylines.txt']")
-    print ("     +s: Will be asked to enter the Strength limit of the skylines and the range of wavelengths") 
+    print ("     +s: Will be asked to enter the Strength limit of the skylines and the range of wavelengths")
     print ("                                          around skylines to be cut off [default: 0.1 and 1.25]")
     print ("     -w: An ordinary arithmetic average will be used instead of a weighted average")
-    print ("     -l: Will be asked to enter the number of standard deviations at the given wavelength") 
+    print ("     -l: Will be asked to enter the number of standard deviations at the given wavelength")
     print ("                                        to use for the clipping limit [default value is 5]")
     print ("     -m: Will be asked to enter the size of the median filter window [default value is 21]")
+    print ("     -e or -E: the method of error calculation (see above)")
     print ("")
     sys.exit(-1)
 
@@ -356,226 +404,213 @@ def usage():
 ##########################################################################
 
 
-#os.chdir("/home/benj/OwnCloud/My_Papers/BW_Scl/Data/Xsh/NIR/NewReduction/Telluric_Cleaned/Phased/Test/")
-#os.chdir("/home/benj/OwnCloud/Scripts/T/")
-#os.chdir("/home/benj/OwnCloud/My_Papers/BW_Scl/Data/Xsh/NIR/NewReduction/TotalSum.telluric")
+if __name__ == '__main__':
 
-
-#print_header()
-
-global isClipMask, isClean, isWeighted, isSky, Sky, dLam, SkyStrengthLimit
-FileList=False
-ResultFileName=False
-isClipMask = True
-isClean = True
-isRenorm = True
-isWeighted = True
-isInterp = False
-isSky = True
-Sky = []
-HomeDir = "/scisoft/Other_Soft/Files4scripts/"
-FileNameSky = HomeDir+"skylines.txt"
-
-dLam = 1.25
-SkyStrengthLimit = 0.1
-s1 = 0
-Median1 = 21
-Sigmas = 5.0
-
-if len(sys.argv) == 1:
-    usage()
-
-for i in range(len(sys.argv)-1):
-    CmdLinePar = sys.argv[i+1]
-    # print('CmdParameter=',CmdLinePar,'First symbol: ',CmdLinePar[0])
-    # print(CmdLinePar[0])
-    if (CmdLinePar[0] != '-') and (CmdLinePar[0] != '+'):
-        if not FileList:
-            FileName = CmdLinePar
-            if FileName[0] == '@':
-                s1 = 1
-            try:
-                infile = open(FileName[s1:], "r")
-                lines = infile.readlines()
-                infile.close()
-                print("The FileList ",FileName[s1:]," includes ",len(lines)," FileNames")
-                FileList=True                
-            except:
-                print("Something wrong with the FileList ",FileName[s1:])
-        else:
-            ResultFile = CmdLinePar.rstrip('\n')
-            if not os.path.isfile(ResultFile):                
-                ResultFileName = True
-            else:
-                while not os.path.isfile(ResultFile):
-                    print("The File ",ResultFile," already exists.")
-                    ResultFile = input("Enter the file name for the result: ")
-                ResultFileName = True            
-    elif CmdLinePar[0] == '-':
-        if ('h' or 'H') in CmdLinePar[1:]:
-            usage()
-            exit()
-        if ('c' or 'C') in CmdLinePar[1:]:
-            isClean = False
-        if ('q' or 'Q') in CmdLinePar[1:]:
-            isClipMask = False
-        if ('s' or 'S') in CmdLinePar[1:]:
-            isSky = False
-        if ('n' or 'N') in CmdLinePar[1:]:
-            isRenorm = False
-        if ('w' or 'W') in CmdLinePar[1:]:
-            isWeighted = False
-        if ('l' or 'L') in CmdLinePar[1:]:
-            Sigmas = float(input("Enter the number of standard deviations for the clipping limit [default value is 5]: "))
-        if ('m' or 'M') in CmdLinePar[1:]:
-            Median1 = int(input("Enter the size of the median filter window (the default value is 21): "))
-
-    elif CmdLinePar[0] == '+':
-        if ('s' or 'S') in CmdLinePar[1:]:
-            isSky = True
-            SkyStrengthLimit = float(input("Enter the Strength limit of the skylines to be cut off [default value is 0.1]: "))
-            SkyStrengthLimit = float(input("Enter the range of wavelengths around skylines to be cut off [default value is 1.25 A]: "))
-            
-while (not FileList):
-    FileName = input("Enter the file name of a list of spectra: ")
-    while not os.path.isfile(FileName):
-        print("The File ",FileName," doesn't exist.")
-        # FileName = input("Enter the file name of a list of spectra: ")
-    try:
-        infile = open(FileName[s1:], "r")
-        lines = infile.readlines()
-        infile.close()
-        print("The FileList ",FileName[s1:]," includes ",len(lines)," FileNames")
-        FileList=True                
-    except:
-        print("Something wrong with the FileList ",FileName[s1:])
-NumOfSpec = len(lines)
-
-if not ResultFileName:
-    i = 1
-    ResultFile = FileName[s1:] + ".dat"
-    while os.path.isfile(ResultFile):
-        ResultFile = FileName[s1:] + '.' + str(i) + ".dat"
-        i+=1
-ResultFileName = True            
-
-
-WaveFirst, isErr, isMask = FirstSpec(lines[0].rstrip('\n'),FileNameSky)
-
-if isClipMask:
-    print('\nThe spectra will be masked.')
-else:
-    print('\nThe spectra will NOT be masked.')
-
-if isSky:
-    print('The sky lines will be cut off.')
-else:
-    print('The sky lines will NOT be cut off.')
+    #try:
+       #os.chdir("d:\\VBN\\OwnCloud\\My_Papers\\SSS122222\\VLT\\2019\\Tests")
+       #retval = os.getcwd()
+       #print ("Windows directory changed successfully: %s" % retval)
+    #except:
+       #try:
+           #os.chdir("/home/benj/OwnCloud/My_Papers/SSS122222/VLT/2019/Tests")
+           ### Check current working directory.
+           #retval = os.getcwd()
+           #print ("Linux directory changed successfully: %s" % retval)
+       #except:
+           #print ("The directory could not change.")
     
-if isClean:
-    print('The spectra will be cleaned with Median',Median1,' and sigma',Sigmas)
-else:
-    print('The spectra will NOT be cleaned.')
-
-if isRenorm:
-    print('The spectra will be normalized.')
-else:
-    print('The spectra will NOT be normalized.')
-
-if isWeighted:
-    print('The resulting spectrum will be the WEIGHTED average.')
-else:
-    print('The resulting spectrum will be the ordinary arithmetic average.')
-
-print('\nThe resulting spectrum will be written in the file ',ResultFile)
-# isInterp = False
-
-
-
-# exit()
-
-
-
-# if (len(sys.argv) > 1):
-#     FileName = sys.argv[1]
-# else:
-#     print(" ")
-#     print("Enter the filename of a spectrum or a [@}list of spectra: ")
-#     output_file_path = stdin.readline()
-#     FileName = output_file_path.rstrip('\n')
-
-# if FileName[0]=='@':
-#     FileList=True
-#     import os
-#     os. chdir("/home/benj/OwnCloud/My_Papers/BW_Scl/Data/Xsh/NIR/NewReduction/Telluric_Cleaned/Phased/Test/")
-#     infile = open(FileName[1:], "r")
-#     lines = infile.readlines()
-#     infile.close()
-#     print("The FileList ",FileName[1:]," includes ",len(lines)," FileNames")
-# else:
-#     FileList=False
-#     lines = []
-#     lines.append(FileName)
-#     print("The FileList includes ",len(lines)," FileName(s)")
-
-
-# print('NumOfSpec=',NumOfSpec)
-
-#if Rebin:
-    #Bins = int(raw_input("Enter the binning factor (integer number of points): "))
-if isInterp:
-    #InterPoints = int(raw_input("Enter the integer number of points in the interpolated spectrum: "))
-    InterW1 = int(raw_input("Enter the first wavelength in the cut spectrum: "))
-    InterW2 = int(raw_input("Enter the last wavelength in the cut spectrum: "))
-
-
-#############
-AllFlux,AllFluxErr = ReadSpectra(lines,WaveFirst,isErr,isMask)
-if isRenorm:
-    AllFlux,AllFluxErr = renorm(NumOfSpec,AllFlux,AllFluxErr)
-FluxAve = np.empty_like(WaveFirst)
-FluxErr = np.empty_like(WaveFirst)
-
-#ave = np.average(AllFlux[:,3], axis=None, weights=1./(AllFluxErr[:,3])**2, returned=False)
-#print("np.ave=",ave)
-
-#ave,wstd = weighted_avg_and_std(AllFlux[:,3], 1./(AllFluxErr[:,3])**2)
-#print(ave,'+/-',wstd)
-
-#testx = [100.4486,100.4649,103.3701,99.04276]
-#tests = [2.106141,4.086935,3.191189,3.552972]
-#weights = 1./(np.asarray(tests))**2
-#print('sum=',np.sum(weights))
-#print("sig=",(1. / np.sum(weights))**0.5)
-#weights = weights / np.sum(weights)
-#print('sum=',np.sum(weights))
-
-
-#ave,wstd = weighted_avg_and_std(testx, weights)
-#print("np.ave=",ave,'+/-',wstd)
-
-#Summa=0
-for i in range(len(WaveFirst)):
-    #print("min=",min((AllFluxErr[:,i])))
-    if min((AllFluxErr[:,i]))>0.0:
-        FluxAve[i],FluxErr[i] = weighted_avg_and_std(AllFlux[:,i], 1./(AllFluxErr[:,i])**2)
-
-# print("NewSum=",FluxAve,FluxErr)
-if isErr:
+    global isClipMask, isClean, isWeighted, isSky, Sky, dLam, SkyStrengthLimit
+    FileList=False
+    isTemplate = False
+    ResultFileName=False
+    isClipMask = True
+    isClean = True
+    isRenorm = True
+    isWeighted = True
+    isInterp = False
+    isSky = True
+    Sky = []
+    ScriptDir = "/scisoft/Other_Soft/Files4scripts/"
+    if os.path.isfile('./skylines.txt'):
+        FileNameSky = "./skylines.txt"
+    else:
+        FileNameSky = ScriptDir+"skylines.txt"
+    
+    dLam = 1.25
+    SkyStrengthLimit = 0.1
+    s1 = 0
+    Median1 = 21
+    Sigmas = 5.0
+    HowError = 1
+    
+    if len(sys.argv) == 1:
+        usage()   
+    
+    for i in range(len(sys.argv)-1):
+        CmdLinePar = sys.argv[i+1]
+        if (CmdLinePar[0] != '-') and (CmdLinePar[0] != '+'):
+            if not FileList:
+                FileName = CmdLinePar
+                if FileName[0] == '@':
+                    s1 = 1
+                    try:
+                        infile = open(FileName[s1:], "r")
+                        lines = infile.readlines()
+                        infile.close()
+                        print("The FileList ",FileName[s1:]," includes ",len(lines)," FileNames")
+                        FileList=True
+                    except:
+                        print("Something wrong with the FileList ",FileName[s1:])
+                else:
+                    isTemplate = True
+                    lines=glob.glob(FileName)
+                    if len(lines)>0:
+                        print("\n",len(lines),"file(s) are found.")
+                        FileList=True
+                    else:
+                        print("No file(s) matching the template are found.")
+            else:
+                ResultFile = CmdLinePar.rstrip('\n')
+                if not os.path.isfile(ResultFile):
+                    ResultFileName = True
+                else:
+                    while not os.path.isfile(ResultFile):
+                        print("The File ",ResultFile," already exists.")
+                        ResultFile = input("Enter the file name for the result: ")
+                    ResultFileName = True
+        elif CmdLinePar[0] == '-':
+            if ('h') in CmdLinePar[1:]:
+                usage()
+                exit()
+            if ('H') in CmdLinePar[1:]:
+                print_history()
+                exit()
+            if ('c' or 'C') in CmdLinePar[1:]:
+                isClean = False
+            if ('q' or 'Q') in CmdLinePar[1:]:
+                isClipMask = False
+            if ('s' or 'S') in CmdLinePar[1:]:
+                isSky = False
+            if ('n' or 'N') in CmdLinePar[1:]:
+                isRenorm = False
+            if ('w' or 'W') in CmdLinePar[1:]:
+                isWeighted = False
+            if ('l' or 'L') in CmdLinePar[1:]:
+                Sigmas = float(input("Enter the number of standard deviations for the clipping limit [default value is 5]: "))
+            if ('m' or 'M') in CmdLinePar[1:]:
+                Median1 = int(input("Enter the size of the median filter window (the default value is 21): "))
+            if ('e') in CmdLinePar[1:]:
+                HowError = 2
+            if ('E') in CmdLinePar[1:]:
+                HowError = 3
+    
+        elif CmdLinePar[0] == '+':
+            if ('s' or 'S') in CmdLinePar[1:]:
+                isSky = True
+                SkyStrengthLimit = float(input("Enter the Strength limit of the skylines to be cut off [default value is 0.1]: "))
+                SkyStrengthLimit = float(input("Enter the range of wavelengths around skylines to be cut off [default value is 1.25 A]: "))
+    
+    while (not FileList):
+        FileName = input("Enter the file name of a list of spectra: ")
+        while not os.path.isfile(FileName):
+            print("The File ",FileName," doesn't exist.")
+            FileName = input("Enter the file name of a list of spectra: ")
+        try:
+            infile = open(FileName[s1:], "r")
+            lines = infile.readlines()
+            infile.close()
+            print("The FileList ",FileName[s1:]," includes ",len(lines)," FileNames")
+            FileList=True
+        except:
+            print("Something wrong with the FileList ",FileName[s1:])
+    NumOfSpec = len(lines)
+    
+    if not ResultFileName:
+        i = 1
+        if isTemplate:
+            ResultFile = "AveragedSpectrum"
+        else:
+            ResultFile = FileName[s1:]
+        ResultFileTemp = ResultFile
+        while os.path.isfile(ResultFileTemp + ".dat"):
+            ResultFileTemp = ResultFile + '.' + str(i)
+    ##        ResultFile = FileName[s1:] + '.' + str(i) + ".dat"
+            i+=1
+        ResultFile = ResultFileTemp + ".dat"
+    ResultFileName = True
+    
+    
+    
+    WaveFirst, isErr, isMask = FirstSpec(lines[0].rstrip('\n'),FileNameSky)
+    
+    if not isErr:
+        HowError = 3
+    
+    if isClipMask:
+        print('The spectra will be masked.')
+    else:
+        print('The spectra will NOT be masked.')
+    
+    #isSkyFileExists = os.path.isfile(FileNameSky)
+    
+    #if isSky and isSkyFileExists:
+        #print('The sky lines will be cut off.')
+    #elif not isSky:
+        #print('The sky lines will NOT be cut off.')
+    #else:
+        #print ("The file with sky lines is not found. No sky lines will be cut off.")
+        #isSky = False
+    
+    if isClean:
+        print('The spectra will be cleaned with Median',Median1,' and sigma',Sigmas)
+    else:
+        print('The spectra will NOT be cleaned.')
+    
+    if isRenorm:
+        print('The spectra will be normalized.')
+    else:
+        print('The spectra will NOT be normalized.')
+    
+    if isWeighted:
+        print('The resulting spectrum will be the WEIGHTED average.')
+    else:
+        print('The resulting spectrum will be the ordinary arithmetic average.')
+    
+    print('\nThe resulting spectrum will be written in the file ',ResultFile)
+    
+    print('\nThe flux errors in the resulting spectrum will be calulated using the')
+    if HowError == 3:
+        print('spectrum itself.')
+    elif HowError == 2:
+        print ("formula SQRT(1/sum(weights)).")
+    else:
+        print ("formula SQRT(sum(weights*(values-average)^2)/sum(weights)/(N-1)).")
+    
+    if isInterp:
+        InterW1 = int(raw_input("Enter the first wavelength in the cut spectrum: "))
+        InterW2 = int(raw_input("Enter the last wavelength in the cut spectrum: "))
+    
+    
+    AllFlux,AllFluxErr = ReadSpectra(lines,WaveFirst,isErr,isMask)
+    FluxMed=median(AllFlux)
+    if isRenorm:
+        AllFlux,AllFluxErr = renorm(NumOfSpec,AllFlux,AllFluxErr)
+    FluxAve = np.empty_like(WaveFirst)
+    FluxErr = np.empty_like(WaveFirst)
+    
+    for i in range(len(WaveFirst)):
+        if min((AllFluxErr[:,i])) == 0.0:
+            AllFluxErr[:,i] = AllFluxErr[:,i] + 0.001*FluxMed
+        Weights=1./(AllFluxErr[:,i])**2
+        FluxAve[i] = np.average(AllFlux[:,i], weights=Weights)
+        NZ=np.count_nonzero(Weights)
+        if HowError == 2:
+            FluxErr[i] = math.sqrt(1. / np.sum(Weights))
+        elif HowError == 1:
+            #FluxErr[i] = weighted_std(AllFlux[:,i], 1./(AllFluxErr[:,i])**2, HowError)
+            FluxErr[i] = math.sqrt(np.sum(Weights*(AllFlux[:,i]-FluxAve[i])**2) / (NZ-1) / np.sum(Weights))
+    if HowError == 3:
+        FluxErr = MedStd(FluxAve - MedFilt(FluxAve,Median1), Median1)
+    
     WriteData3(len(WaveFirst),WaveFirst,FluxAve,FluxErr,ResultFile)
-else:
-    WriteData2(len(WaveFirst),WaveFirst,FluxAve,ResultFile)
 
-#from statsmodels.stats.weightstats import DescrStatsW
-
-
-#print("New")
-#print(AllFlux[:,3])
-#print(AllFluxErr[:,3])
-#print("New")
-#print(AllFlux[3,:])
-#print(len(AllFlux[3,:]),len(AllFlux[:,3]))
-
-#for line in lines:
-    #FileName = line.rstrip('\n')
-    #CleanSpec(FileName)
