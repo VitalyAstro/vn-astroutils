@@ -3,7 +3,7 @@
 A utility to calculate magnitudes and fluxes in different photometric filters from a spectrum
 vn-spec2phot.py: ver. 20250305  (c) Vitaly Neustroev
 """
-DateVer='2.0:  2025-March-05'
+DateVer='2.1:  2025-March-05'
 ScriptDir2 = '/scisoft/Other_Soft/Files4scripts/'
 
 import sys
@@ -25,7 +25,7 @@ def print_history():
     print('\nHistory:')
     print('2022-Dec-04: Location of files of transmission curves has been formalized.')
     print('2025-Mar-04: GAIA filters added.')
-    print('2025-Mar-05: User interface improved.')
+    print('2025-Mar-05: User interface improved. UVOT filters corrected.')
 
 #########################################################################
 
@@ -94,8 +94,8 @@ def Magnitude(VegaSystem,ZP,Flux):
 ## Text menu in Python
 
 def print_menu():       ## Your menu design here
-    print("\n")
-    print(43 * "-" , "Filter sets" , 43 * "-")
+#    print("\n")
+#    print(43 * "-" , "Filter sets" , 43 * "-")
     print("1. UVOT filters")
     print("2. Standard Johnson-Cousins UBVRI filters (Bessell)")
     print("3. PANSTARRS-PS1 filters")
@@ -156,11 +156,11 @@ print_header()
 is_file = False
 VegaSystem = True
 loop=True
+filter_set = -1
 
 if len(sys.argv) == 1:
     print_usage()
-    print("\nEnter the filename of a spectrum: ")
-    output_file_path = stdin.readline()
+    output_file_path = input("\nEnter the filename of a spectrum: ")
     SpecFile = output_file_path.rstrip('\n')
     is_file = True
 else:
@@ -178,7 +178,7 @@ else:
                     filter_set = int(CmdLinePar[2:])
                 except:
                     print('\nSomething wrong with the -b parameter. No filter set is recognised.')
-                    filter_set = -1
+#                    filter_set = -1
         else:
             SpecFile = CmdLinePar
             is_file = True
@@ -209,6 +209,7 @@ else:
 
 while loop:          ## While loop which will keep going until loop = False
     if filter_set<0:
+        print()
         print(30 * "-" , "MENU: select a filter set" , 30 * "-")
         print("0. Exit")
         print_menu()    ## Displays menu
@@ -220,27 +221,28 @@ while loop:          ## While loop which will keep going until loop = False
     else:
         choice = filter_set
 
+    print()
     if choice==0:
         print("Exit")
         exit()
         ## You can add your code or functions here
     elif choice==1:
-        print("UVOT filters have been selected")
+        print("UVOT filters have been selected. Vega system.")
         FileName = 'uvot.dat'
-        FilterNames = ['w1','m1','w2']
-        FilterZPs = [0,0,0]
-        VegaSystem = False
+        FilterNames = ['w2','m2','w1','uu','bb','vv']
+        FilterZPs = [5.36274e-9,4.67904e-9,4.14563e-9,3.63751e-9,6.47559e-9,3.72393e-9]
+        #VegaSystem = False
         loop=False
         ## You can add your code or functions here
     elif choice==2:
-        print("Johnson-Cousins UBVRI filters (Bessell) have been selected")
+        print("Johnson-Cousins UBVRI filters (Bessell) have been selected. Vega system.")
         FileName = 'bessell.dat'
         FilterNames = ['U','B','V','R','I']
         FilterZPs = [417.5e-11,632.0e-11,363.1e-11,217.7e-11,112.6e-11]
         loop=False
         ## You can add your code or functions here
     elif choice==3:
-        print("PANSTARRS-PS1 filters have been selected")
+        print("PANSTARRS-PS1 filters have been selected. AB system.")
         FileName = 'panstarrs1.dat'
         FilterNames = ['g','r','i','z','y']
         FilterZPs = [4810.,6170.,7520.,8660.,9620.]
@@ -248,7 +250,7 @@ while loop:          ## While loop which will keep going until loop = False
         loop=False
         ## You can add your code or functions here
     elif choice==4:
-        print("Sloan/SDSS filters have been selected")
+        print("Sloan/SDSS filters have been selected. AB system.")
         FileName = 'sdss.dat'
         FilterNames = ['u','g','r','i','z']
         FilterZPs = [3551,4686,6165,7481,8931]
@@ -256,7 +258,7 @@ while loop:          ## While loop which will keep going until loop = False
         loop=False
         ## You can add your code or functions here
     elif choice==5:
-        print("NIR J-H-Ks-K filters have been selected")
+        print("NIR J-H-Ks-K filters have been selected. Vega system.")
         FileName = 'jhksk.dat'
         FilterNames = ['J','H','Ks','K']
         FilterZPs = [31.47e-11,11.38e-11,3.961e-11,3.961e-11]
@@ -264,13 +266,13 @@ while loop:          ## While loop which will keep going until loop = False
         ## You can add your code or functions here
         loop=False # This will make the while loop to end as not value of loop is set to False
     elif choice==6:
-        print("Johnson-Cousins UBVRI filters (Astrodon) have been selected")
+        print("Johnson-Cousins UBVRI filters (Astrodon) have been selected. Vega system.")
         FileName = 'ubvri.dat'
         FilterNames = ['U','B','V','R','I']
         FilterZPs = [417.5e-11,632.0e-11,363.1e-11,217.7e-11,112.6e-11]
         loop=False
     elif choice==7:
-        print("GAIA filters have been selected")
+        print("GAIA filters have been selected. Vega system.")
         FileName = 'gaia.dat'
         FilterNames = ['G   ','Gbp3','Grp3','Grvs']
         FilterZPs = [2.50386e-9,4.07852e-9,1.26902e-9,9.03937e-10]
