@@ -104,13 +104,10 @@ def print_menu():       ## Your menu design here
     print("6. Johnson-Cousins UBVRI filters (Astrodon)")
     print("7. GAIA filters")
     print(99 * "-")
-    print("***************************************************************************************************")
-
-    print("***************************************************************************************************")
 
 def print_filter_sets():       ## Your menu design here
     print("\n")
-    print(30 * "-" , "Filter sets and the corresponded files" , 30 * "-")
+    print(15 * "-" , "Filter sets and the corresponding files of the transmission curves:" , 15 * "-")
     print("1. UVOT filters - 'uvot.dat'")
     print("2. Standard Johnson-Cousins UBVRI filters (Bessell) - 'bessell.dat'")
     print("3. PANSTARRS-PS1 filters - 'panstarrs1.dat'")
@@ -118,7 +115,7 @@ def print_filter_sets():       ## Your menu design here
     print("5. NIR J-H-Ks-K filters - 'jhksk.dat'")
     print("6. Johnson-Cousins UBVRI filters (Astrodon) - 'ubvri.dat'")
     print("7. GAIA filters - 'gaia.dat'")
-    print("\nThe filter files must be located in the current or one of the following folders:")
+    print("\nThe transmission curves must be located in the current or one of the following folders:")
     print(str(Path.home())+'/.vn-astroutils/')
     print(ScriptDir2)
     print(99 * "-")
