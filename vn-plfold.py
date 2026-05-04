@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 import numpy as np
 import matplotlib.pyplot as plt
 import os
@@ -118,6 +120,9 @@ def process_and_plot(fcol=1, tcol=2, wcol=1, scol=2, dcol=0, cfile='specnames',
 
     # 3. Handle Phase Folding or Sorting
     if rebin:
+        idx = np.argsort(pha % 1.0)
+        trsp = spin[idx]
+    else:
         if nbin is None: nbin = len(pha)
         trsp = np.zeros((nbin, len(w1)))
         counts = np.zeros(nbin)
@@ -127,9 +132,6 @@ def process_and_plot(fcol=1, tcol=2, wcol=1, scol=2, dcol=0, cfile='specnames',
             counts[idx] += 1
         mask = counts > 0
         trsp[mask] = (trsp[mask].T / counts[mask]).T
-    else:
-        idx = np.argsort(pha % 1.0)
-        trsp = spin[idx]
 
     # 4. Preparation for Visualization (2-phase repeat)
     trs = np.tile(trsp, (2, 1))
@@ -183,7 +185,7 @@ def usage():
     print ("     -scol : column number of spectrum                     (example: -scol=2)")
     print ("")
 #    print ("     -dph  : a fixed phase interval can be specified here for the exposure times (example: -dph=0)")
-    print ("     -rebin: if rebin=1, rebin data into equidistant phase bins (example: -rebin=1)")
+    print ("     -rebin: if rebin=1, rebin data into equidistant phase bins (example: -rebin=0)")
     print ("     -nbin : number of phase bins to be used. Default: number of spectra")
     print ("                                                           (example: -nbin=None)")
     print ("     -cmap : color map for image                           (example: -cmap=gist_stern)")
@@ -211,7 +213,7 @@ if __name__ == '__main__':
     scol=2
     cfile=''
     nbin=None
-    rebin=1
+    rebin=0
     fac=1.0
     hic=99.0
     loc=1.0
@@ -247,7 +249,8 @@ if __name__ == '__main__':
                 nbin=int(CmdLinePar[6:])
             if ('rebin=') in CmdLinePar[1:7]:
                 rbin=int(CmdLinePar[7:])
-                if rbin != 0: rebin=0
+                if rbin != 0: rebin=1
+                else:rebin=0
             if ('cmap=') in CmdLinePar[1:6]:
                 cmap=CmdLinePar[6:]
             if ('fac=') in CmdLinePar[1:5]:
