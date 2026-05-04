@@ -1,6 +1,6 @@
 #!/usr/bin/python
 
-DateVer='2.0:  2025-March-06'
+DateVer='3.0:  2026-March-04'
 ScriptDir2 = '/scisoft/Other_Soft/Files4scripts/'
 
 #import numpy
@@ -15,35 +15,70 @@ import glob
 from pathlib import Path
 import math
 from math import log10
+import warnings
 
 
 # ==============================================================================
 def print_history():
     print('\nHistory:')
     print('2025-Mar-06: User interface significantly improved.')
+    print('2026-Mar-04: Added an option of spectra normalisation.')
 
 ##########################################################################
 
 
 def SpecStat(FileName,W1,W2):
     """
-    Write three columns of data to an external ASCII text file
+    Calculate the average Flux of a spectrum in the wavelength range W1-W2
     """
-    data0 = loadtxt(FileName, usecols=[0,1], unpack=True,skiprows=0)
-    #data0 = loadtxt(FileName, usecols=[0,1,2], unpack=True,skiprows=535)
-    Length=len(data0[0,:])
-    EndSkip=0
-    Wavelength=data0[0,:Length-EndSkip]
-    Flux=data0[1,:Length-EndSkip]
-    FluxNew=data0[1,:Length-EndSkip]
-    #FluxErr=data0[2,:Length-EndSkip]
-    Length=len(Wavelength)
-    idxW1=find_nearest(Wavelength,W1)
-    idxW2=find_nearest(Wavelength,W2)
+    try:
+        data0 = loadtxt(FileName, usecols=[0,1], unpack=True,skiprows=0)
+        #data0 = loadtxt(FileName, usecols=[0,1,2], unpack=True,skiprows=535)
+        Length=len(data0[0,:])
+        EndSkip=0
+        Wavelength=data0[0,:Length-EndSkip]
+        Flux=data0[1,:Length-EndSkip]
+        FluxNew=data0[1,:Length-EndSkip]
+        #FluxErr=data0[2,:Length-EndSkip]
+        Length=len(Wavelength)
+        idxW1=find_nearest(Wavelength,W1)
+        idxW2=find_nearest(Wavelength,W2)
+    except:
+        print("\nSomething wrong with the file ",FileName)
+        print("Please check whether it is a spectrum or not. Terminating...")
+        exit()
     return mean(Flux[idxW1:idxW2])
 
 #########################################################################
 
+
+def SpecNorm(FileName,SetMean,SpecMean):
+    """
+    Normalise the spectrum
+    """
+    isErr = False
+    try:
+        data0 = loadtxt(FileName, unpack=True,skiprows=0)
+        Wavelength=data0[0,:]
+        Length=len(Wavelength)
+        Flux=data0[1,:]
+        FluxNew = Flux * SetMean / SpecMean
+    except:
+        print("\nSomething wrong with the file ",FileName)
+        print("Please check whether it is a spectrum or not. Skipping...")
+        pass
+    try:
+       FluxErr=data0[2,:]
+       isErr = True
+       FluxErrNew = FluxErr * SetMean / SpecMean
+       WriteData3(Length,Wavelength,FluxNew,FluxErrNew,FileName+'.norm')
+    except IndexError:
+       isErr = False
+       FluxErr=data0[1,:]
+       WriteData2(Length,Wavelength,FluxNew,FileName+'.norm')
+    print("\nWritten the normalised file ",FileName+'.norm', end = '')
+
+#########################################################################
 
 def TestFileList(FileName):
     """
@@ -128,6 +163,34 @@ def find_nearest(array, value):
     return idx
 
 ##########################################################################
+
+##################################################################
+
+def WriteData2(nn,aa,bb,output_file_path):
+    """
+    Write two columns of data to an external ASCII text file
+    """
+    output_file = output_file_path.rstrip('\n')
+    outfile = open(output_file,"w")
+    for i in range (0, nn):
+        outfile.write(' %12.6f \t %12.6e \n' %  (aa[i],bb[i]))
+#        outfile.write(' %12.6f \t %12.6f \n' %  (aa[i],bb[i]))
+    outfile.close()
+
+########################################################################
+
+def WriteData3(nn,aa,bb,cc,output_file_path):
+    """
+    Write three columns of data to an external ASCII text file
+    """
+    outfile = open(output_file_path,"w")
+    for i in range (0, nn):
+        #outfile.write(' %s \t %12.6e \t %12.6e \n' %  (aa[i],bb[i],cc[i]))
+        outfile.write(' %12.6f \t %12.6e \t %12.6e \n' %  (aa[i],bb[i],cc[i]))
+        # outfile.write(' %12.6f \t %12.6f \t %12.6f \n' %  (aa[i],bb[i],cc[i]))
+    outfile.close()
+
+########################################################################
 
 
 def print_menu():       ## Your menu design here
@@ -292,7 +355,8 @@ def print_header():
     print("**                                      vn-spec-stat.py                                          **")
     print("**                                 ver. %s                                      **" % DateVer)
     print("**             A utility to calculate integrated fluxes in a wavelength range and                **")
-    print("**                    different photometric filters from a list of spectra                       **")
+    print("**                    different photometric filters from a list of spectra.                      **")
+    print("**                            The spectra can also be normalised.                                **")
     print("**                                     Vitaly  Neustroev                                         **")
     print("***************************************************************************************************")
     print()
@@ -310,6 +374,7 @@ def print_usage():
     print("  W1: the start wavelength of the range for statistics.")
     print("  W2: the start wavelength of the range for statistics.")
     print ("Options:")
+    print("  -N: all the spectra will be normalised to the average value calculated in the wavelength range of W1-W2.")
     print("  -f: the list of supported Filter sets")
     print("  -h: the program's history")
     print(" ")
@@ -319,9 +384,11 @@ def print_usage():
 
 
 if __name__ == "__main__":
+    warnings.filterwarnings("ignore")
     print_header()
-    FileList=False
+    FileList = False
     isTemplate = False
+    isNorm = False
     s1 = 0
 #    FiltName = 'V'
 
@@ -330,7 +397,16 @@ if __name__ == "__main__":
 
     for i in range(len(sys.argv)-1):
         CmdLinePar = sys.argv[i+1]
-        if (CmdLinePar[0] != '-') and (CmdLinePar[0] != '+'):
+        if CmdLinePar[0] == '-':
+            if ('f' or 'F') in CmdLinePar[1:]:
+                print_filter_sets()
+                exit()
+            if ('h') in CmdLinePar[1:]:
+                print_history()
+                exit()
+            if ('N' or 'n') in CmdLinePar[1:]:
+                isNorm = True
+        elif (CmdLinePar[0] != '-') and (CmdLinePar[0] != '+'):
             if not FileList:
                 FileName = CmdLinePar
                 if FileName[0] == '@':
@@ -344,16 +420,17 @@ if __name__ == "__main__":
                         outfilename = FileName[s1:]
                     except:
                         print("Something wrong with the FileList ",FileName[s1:])
-                elif TestFileList(FileName)==0:
-                    try:
-                        infile = open(FileName[s1:], "r")
-                        FileNames = infile.readlines()
-                        infile.close()
-                        print("The FileList ",FileName[s1:]," includes ",len(FileNames)," FileNames")
-                        FileList=True
-                        outfilename = FileName[s1:]
-                    except:
-                        print("Something wrong with the FileList ",FileName[s1:])
+                # elif TestFileList(FileName)==0:
+                #     try:
+                #         infile = open(FileName[s1:], "r")
+                #         FileNames = infile.readlines()
+                #         infile.close()
+                #         print("The FileList ",FileName[s1:]," includes ",len(FileNames)," FileNames")
+                #         FileList=True
+                #         outfilename = FileName[s1:]
+                #     except:
+                #         print(2)
+                #         print("Something wrong with the FileList ",FileName[s1:])
                 else:
                     isTemplate = True
                     FileNames=glob.glob(FileName)
@@ -363,13 +440,6 @@ if __name__ == "__main__":
                         outfilename = 'SpecStat'
                     else:
                         print("No file(s) matching the template are found.")
-        elif CmdLinePar[0] == '-':
-            if ('f' or 'F') in CmdLinePar[1:]:
-                print_filter_sets()
-                exit()
-            if ('h') in CmdLinePar[1:]:
-                print_history()
-                exit()
 
     if (not FileList):
         FileName = input("Enter the file name of a list of spectra: ")
@@ -396,49 +466,60 @@ if __name__ == "__main__":
                 print("No file(s) matching the template are found.")
                 exit()
     NumOfSpec = len(FileNames)
+    SpecFlux = list(range(NumOfSpec))
+    if isNorm:
+        s1 = 1
+    else:
+        s1 = 0
+
+    if (len(sys.argv) > 2+s1):
+        W1 = float(sys.argv[2+s1])
+        print("The start wavelength of the range for statistics: ",W1)
+    else:
+        print()
+        W1 = input("Enter the start wavelength of the range for statistics: ")
+        W1 = float(W1)
+    if (len(sys.argv) > 3+s1):
+        W2 = float(sys.argv[3+s1])
+        print("The end wavelength of the range for statistics:   ",W2)
+    else:
+        W2 = input("Enter the end wavelength of the range for statistics:   ")
+        W2 = float(W2)
+
+    if (len(sys.argv) > 4+s1):
+        FiltName = sys.argv[4+s1]
 
 
-if (len(sys.argv) > 2):
-    W1 = float(sys.argv[2])
-    print("The start wavelength of the range for statistics: ",W1)
-else:
-    print()
-    W1 = input("Enter the start wavelength of the range for statistics: ")
-    W1 = float(W1)
-if (len(sys.argv) > 3):
-    W2 = float(sys.argv[3])
-    print("The end wavelength of the range for statistics:   ",W2)
-else:
-    W2 = input("Enter the end wavelength of the range for statistics:   ")
-    W2 = float(W2)
+    NumOfFiles=len(FileNames)
 
-if (len(sys.argv) > 4):
-  FiltName = sys.argv[4]
-
-
-NumOfFiles=len(FileNames)
-
-outfile = open(outfilename+".Stat","w")
-for i in range(NumOfFiles):
-    FileName = FileNames[i].rstrip('\n')
-    outfile.write(' %s \t %12.6e  \n' %  (FileName,SpecStat(FileName,W1,W2)))
-outfile.close()
-print('\n*** The integrated flux in the wavelength range is written in the file ',outfilename+".Stat")
-
-FiltName,FilterNames,FilterZPs=filter_selection()
-if FiltName:
-    outfile2 = open(outfilename+".Phot","w")
-    outfile2.write(' %s \t' %  ('#FileName'))
-    for j in range(len(FilterNames)):
-        outfile2.write(' %12s  \t' %  (FilterNames[j]))
-    outfile2.write('\n')
+    outfile = open(outfilename+".Stat","w")
     for i in range(NumOfFiles):
         FileName = FileNames[i].rstrip('\n')
-        NumberOfFilters,SpecFlux = SpecPhotometry(FileName,FiltName)
-        outfile2.write(' %s \t' %  (FileName))
-        for j in range(NumberOfFilters):
-            outfile2.write(' %12.6e  \t' %  (SpecFlux[j]))
+        SpecFlux[i] = SpecStat(FileName,W1,W2)
+        outfile.write(' %s \t %12.6e  \n' %  (FileName,SpecFlux[i]))
+    outfile.close()
+    print('\n*** The integrated flux in the wavelength range is written in the file ',outfilename+".Stat")
+
+    if isNorm:
+        SetMean = mean(SpecFlux)
+        for i in range(NumOfFiles):
+            FileName = FileNames[i].rstrip('\n')
+            SpecNorm(FileName,SetMean,SpecFlux[i])
+
+    FiltName,FilterNames,FilterZPs=filter_selection()
+    if FiltName:
+        outfile2 = open(outfilename+".Phot","w")
+        outfile2.write(' %s \t' %  ('#FileName'))
+        for j in range(len(FilterNames)):
+            outfile2.write(' %12s  \t' %  (FilterNames[j]))
         outfile2.write('\n')
-    print("Number of Filters =",NumberOfFilters)
-    outfile2.close()
-    print('*** The flux in photometric bands is written in the file ',outfilename+".Phot")
+        for i in range(NumOfFiles):
+            FileName = FileNames[i].rstrip('\n')
+            NumberOfFilters,SpecFlux = SpecPhotometry(FileName,FiltName)
+            outfile2.write(' %s \t' %  (FileName))
+            for j in range(NumberOfFilters):
+                outfile2.write(' %12.6e  \t' %  (SpecFlux[j]))
+            outfile2.write('\n')
+        print("Number of Filters =",NumberOfFilters)
+        outfile2.close()
+        print('*** The flux in photometric bands is written in the file ',outfilename+".Phot")
