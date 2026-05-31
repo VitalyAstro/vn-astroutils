@@ -8,11 +8,12 @@ import sys
 # ==============================================================================
 def print_history():
     print('2026-May-04: Original version.')
+    print('2026-June-01: Added nophase option.')
 
 # ==============================================================================
 
 class InteractiveFoldPlot:
-    def __init__(self, w, trs, trsc, fac, istr, cmap='gist_stern', hic=99., loc=1.0):
+    def __init__(self, w, no_phase, trs, trsc, fac, istr, cmap='gist_stern', hic=99., loc=1.0):
         self.w = w
         self.trs = trs
         self.trsc = trsc
@@ -20,13 +21,17 @@ class InteractiveFoldPlot:
         self.istr = istr
         self.hic = hic
         self.loc = loc
+        if no_phase==0:
+            phmax=2
+        else:
+            phmax=no_phase
 
         # Setup Figure with shared X axis
         self.fig, self.axes = plt.subplots(3, 1, figsize=(15, 10), sharex=True)
         plt.subplots_adjust(hspace=0.08)
 
         # Extent defines wavelength range and 2nd phase repeat
-        self.extent = [w[0], w[-1], 0, 2]
+        self.extent = [w[0], w[-1], 0, phmax]
 
         # Plot 1: Standard Folded Spectra using 'gist_stern' colormap
         self.im1 = self.axes[0].imshow(self.trs, aspect='auto', extent=self.extent,
@@ -41,9 +46,13 @@ class InteractiveFoldPlot:
 #        self.axes[0].set_title(f"Zooming/panning in the UPPER panel will result in Interactive Robust Scaling (1st/99th): {istr}")
         self.axes[0].set_title(f"The color scale automatically recalculates based on the visible data whenever you zoom or pan the UPPER graph.\
         \nCheck also the parameters -fac -cmap -hic and -loc for ignoring outliers and finer color scaling.")
-        self.axes[0].set_ylabel("Phase")
-        self.axes[1].set_ylabel("Phase (Inverse)")
-        self.axes[2].set_ylabel("Phase (Subtracted)")
+        if no_phase==0:
+            phlabel="Phase"
+        else:
+            phlabel="File Index"
+        self.axes[0].set_ylabel(phlabel)
+        self.axes[1].set_ylabel(phlabel+" (Inverse)")
+        self.axes[2].set_ylabel(phlabel+" (Subtracted)")
         self.axes[2].set_xlabel("Wavelength")
 
         # Connect to zoom/pan events
@@ -81,7 +90,7 @@ class InteractiveFoldPlot:
         self.update_normalization()
 
 def process_and_plot(fcol=1, tcol=2, wcol=1, scol=2, dcol=0, cfile='specnames',
-                     nbin=None, data_dir='', rebin=0, fac=1.5, cmap='gist_stern',
+                     nbin=None, data_dir='', rebin=0, no_phase=0, fac=1.5, cmap='gist_stern',
                      hic=99., loc=1.):
     """Processes spectra in-memory and launches the interactive viewer."""
 
@@ -94,10 +103,15 @@ def process_and_plot(fcol=1, tcol=2, wcol=1, scol=2, dcol=0, cfile='specnames',
         lines = [line.strip() for line in f if line.strip()]
 
     fnam, pha = [], []
+    i=1
     for line in lines:
         parts = line.split()
         fnam.append(os.path.join(data_dir, parts[fcol-1]))
-        pha.append(float(parts[tcol-1]))
+        if no_phase==0:
+            pha.append(float(parts[tcol-1]))
+        else:
+            pha.append(i)
+            i+=1
 
     pha = np.array(pha)
 
@@ -112,9 +126,14 @@ def process_and_plot(fcol=1, tcol=2, wcol=1, scol=2, dcol=0, cfile='specnames',
             w1 = w
             sp_ref_mean = np.mean(sp)
             spin.append(sp)
+            if no_phase==1:
+                filelist = f"{'Filename':^{len(name)}}"
+                print(f'{filelist}','Index')
         else:
             sp_interp = np.interp(w1, w, sp)
             spin.append(sp_interp / np.mean(sp_interp) * sp_ref_mean)
+        if no_phase==1: print(name,i)
+
 
     spin = np.array(spin)
 
@@ -127,14 +146,23 @@ def process_and_plot(fcol=1, tcol=2, wcol=1, scol=2, dcol=0, cfile='specnames',
         trsp = np.zeros((nbin, len(w1)))
         counts = np.zeros(nbin)
         for i in range(len(pha)):
-            idx = int((pha[i] % 1.0) * nbin)
+            if no_phase==1:
+                idx=i
+            else:
+                idx = int((pha[i] % 1.0) * nbin)
+#            print(i,pha[i],idx)
+            if no_phase==0: idx=i
             trsp[idx] += spin[i]
             counts[idx] += 1
         mask = counts > 0
         trsp[mask] = (trsp[mask].T / counts[mask]).T
 
     # 4. Preparation for Visualization (2-phase repeat)
-    trs = np.tile(trsp, (2, 1))
+    if no_phase==0:
+        trs = np.tile(trsp, (2, 1))
+    else:
+        trs = trsp
+        no_phase=len(pha)
 
     # SAFE Atmospheric subtraction
     nwo = len(w1)
@@ -149,7 +177,7 @@ def process_and_plot(fcol=1, tcol=2, wcol=1, scol=2, dcol=0, cfile='specnames',
     trsc = trs / (clev_safe[:, np.newaxis] / mean_safe)
 
     # 5. Launch Viewer
-    InteractiveFoldPlot(w1, trs, trsc, fac, cfile, cmap, hic, loc)
+    InteractiveFoldPlot(w1, no_phase, trs, trsc, fac, cfile, cmap, hic, loc)
 
 #########################################################################
 
@@ -159,7 +187,7 @@ def print_header():
     print ("**                                vn-plfold.py                                   **")
     print ("**              A little utility to plot spectra folded over phase               **")
     print ("**                                                                               **")
-    print ("**                                2026-May-04                                    **")
+    print ("**                                2026-June-1                                    **")
     print ("**                             Vitaly  Neustroev                                 **")
     print ("**   (based on Henk Spruit's IDL code converted to Python with help of Gemini)   **")
     print ("***********************************************************************************")
@@ -191,6 +219,7 @@ def usage():
     print ("     -cmap : color map for image                           (example: -cmap=gist_stern)")
     print ("     -fac  : contrast factor for image                     (example: -fac=1.0)")
     print ("     -hic and -loc: high and low cut of intensity (percentiles) (example: -hic=99 -loc=1)")
+    print ("     -nophase: if nophase=1, spectra are printed one by one; no phase info is needed (example: -nophase=0)")
 
 #    print ("")
 #    sys.exit(-1)
@@ -214,6 +243,7 @@ if __name__ == '__main__':
     cfile=''
     nbin=None
     rebin=0
+    no_phase=0
     fac=1.0
     hic=99.0
     loc=1.0
@@ -248,9 +278,13 @@ if __name__ == '__main__':
             if ('nbin=') in CmdLinePar[1:6]:
                 nbin=int(CmdLinePar[6:])
             if ('rebin=') in CmdLinePar[1:7]:
-                rbin=int(CmdLinePar[7:])
-                if rbin != 0: rebin=1
+                rebin=int(CmdLinePar[7:])
+                if rebin != 0: rebin=1
                 else:rebin=0
+            if ('nophase=') in CmdLinePar[1:9]:
+                no_phase=int(CmdLinePar[9:])
+                if no_phase != 0:
+                    no_phase=1
             if ('cmap=') in CmdLinePar[1:6]:
                 cmap=CmdLinePar[6:]
             if ('fac=') in CmdLinePar[1:5]:
@@ -271,15 +305,11 @@ if __name__ == '__main__':
         elif not os.path.isfile(cfile):
             print("The File ",cfile," doesn't exist.")
             exit(-1)
-##            FileName = input("Enter the file name of a list of spectra: ")
-##        try:
-##            infile = open(FileName[s1:], "r")
-##            lines = infile.readlines()
-##            infile.close()
-##            print("The FileList ",FileName[s1:]," includes ",len(lines)," FileNames")
-##            FileList=True
-##        except:
-##            print("Something wrong with the FileList ",FileName[s1:])
+
+    if no_phase != 0:
+        no_phase=1
+        rebin=0
+        nbin=None
 
     process_and_plot(fcol=fcol, tcol=tcol, wcol=wcol, scol=scol, dcol=dcol, cfile=cfile,
-        data_dir=data_dir, rebin=rebin, nbin=nbin, fac=fac*0.7, cmap=cmap, hic=hic, loc=loc)
+        data_dir=data_dir, rebin=rebin, nbin=nbin, no_phase=no_phase, fac=fac*0.7, cmap=cmap, hic=hic, loc=loc)
