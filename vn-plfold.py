@@ -8,7 +8,7 @@ import sys
 # ==============================================================================
 def print_history():
     print('2026-May-04: Original version.')
-    print('2026-June-01: Added nophase option.')
+    print('2026-June-01: Added nophase option and connected to mouse click events.')
 
 # ==============================================================================
 
@@ -57,6 +57,10 @@ class InteractiveFoldPlot:
 
         # Connect to zoom/pan events
         self.axes[0].callbacks.connect('xlim_changed', self.on_zoom)
+
+        # Connect to mouse click events
+        self.fig.canvas.mpl_connect('button_press_event', self.on_click)
+
         self.update_normalization()
         plt.show()
 
@@ -88,6 +92,37 @@ class InteractiveFoldPlot:
 
     def on_zoom(self, event_ax):
         self.update_normalization()
+
+    def on_click(self, event):
+        """Captures mouse clicks, checks which axis was clicked, and prints properties."""
+        # Check if the click occurred inside any of the axes
+        if event.inaxes is None:
+            return
+
+        # Zoom, Pan, or other toolbar modes can generate clicks we might want to ignore.
+        # This checks if a toolbar tool is active (optional, but clean)
+        if self.fig.canvas.manager.toolbar.mode != '':
+            return
+
+        x, y = event.xdata, event.ydata
+
+        # Find the closest index in the wavelength array to read the real array value
+        w_idx = np.abs(self.w - x).argmin()
+        # Find the phase bin index
+        p_idx = int((y % 1.0) * (self.trs.shape[0] // 2))
+
+        # Determine which plot was clicked and extract pixel value
+        if event.inaxes == self.axes[0] or event.inaxes == self.axes[1]:
+            val = self.trs[p_idx, w_idx]
+            plot_name = "Standard/Inverse Plot"
+        elif event.inaxes == self.axes[2]:
+            val = self.trsc[p_idx, w_idx]
+            plot_name = "Subtracted Plot      "
+        else:
+            return
+
+        print(f"[{plot_name}] Clicked -> Waveln: {x:8.3f} | Phase: {y:5.3f} | Value: {val:g}")
+
 
 def process_and_plot(fcol=1, tcol=2, wcol=1, scol=2, dcol=0, cfile='specnames',
                      nbin=None, data_dir='', rebin=0, no_phase=0, fac=1.5, cmap='gist_stern',
@@ -311,5 +346,6 @@ if __name__ == '__main__':
         rebin=0
         nbin=None
 
+    print()
     process_and_plot(fcol=fcol, tcol=tcol, wcol=wcol, scol=scol, dcol=dcol, cfile=cfile,
         data_dir=data_dir, rebin=rebin, nbin=nbin, no_phase=no_phase, fac=fac*0.7, cmap=cmap, hic=hic, loc=loc)
